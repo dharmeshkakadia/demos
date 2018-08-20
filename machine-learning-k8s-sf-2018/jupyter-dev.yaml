@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: jupyter-dev
+spec:
+  containers:
+  - name: jupyter-dev
+    image: mdldatadev.azurecr.io/data/demo
+    ports:
+    - containerPort: 8888
+      protocol: TCP
+    resources:
+      limits:
+        alpha.kubernetes.io/nvidia-gpu: 4 # How many GPUs you want
+    env:
+      - name: sqldwuser
+        valueFrom:
+          secretKeyRef:
+            name: demo-secret
+            key: sqldwuser
+      - name: sqldwpwd
+        valueFrom:
+          secretKeyRef:
+            name: demo-secret
+            key: sqldwpwd
+    volumeMounts: # Where the Nvidia drivers should be mounted in the container
+    - name: lib
+      mountPath: /usr/local/nvidia
+    - name: data
+      mountPath: /data-science # What path should data-science blob be mounted at
+    - name: proddata
+      mountPath: /production # What path should production blob be mounted at
+    - name: run
+      mountPath: /code/run # Temporary local SSD mounted for intermediate data
+  restartPolicy: Never
+  volumes: # Where the Nvidia drivers are located on the node
+    - name: lib
+      hostPath:
+        path: /usr/local/nvidia
+    - name: run
+      hostPath:
+        path: /mnt # Location of local SSD on host
+    - name: data
+      flexVolume:
+        driver: "azure/blobfuse"
+        secretRef:
+          name: demo-datascience-key
+        options:
+          container: demo-datascience # Name of the storage container you want to mount
+    - name: proddata
+      flexVolume:
+        driver: "azure/blobfuse"
+        secretRef:
+          name: demo-prod-key
+        options:
+          container: demo-production # Name of the storage container you want to mount

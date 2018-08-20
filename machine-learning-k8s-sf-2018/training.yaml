@@ -1,0 +1,48 @@
+apiVersion: batch/v1beta1
+kind: CronJob 
+metadata:
+  name: demo-training # Name of our job
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 10
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers: 
+          - name: tf-training
+            image: mdldatadev.azurecr.io/data/demo
+            command: ["python", "training_job.py"]
+            resources:
+              limits:
+                alpha.kubernetes.io/nvidia-gpu: 2 # How many GPUs you want
+            env:
+            - name: sqldwuser
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secret
+                  key: sqldwuser
+            - name: sqldwpwd
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secret
+                  key: sqldwpwd
+            volumeMounts: # Where the Nvidia drivers should be mounted in the container
+            - name: lib
+              mountPath: /usr/local/nvidia
+            - name: proddata
+              mountPath: /production # What path should production blob be mounted at
+          restartPolicy: Never  
+          volumes: # Where the Nvidia drivers are located on the node
+            - name: lib
+              hostPath: 
+                path: /usr/local/nvidia
+            - name: proddata
+              flexVolume:
+                driver: "azure/blobfuse"
+                secretRef:
+                  name: demo-prod-key
+                options:
+                  container: demo-production # Name of the storage container you want to mount
